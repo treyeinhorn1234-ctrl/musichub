@@ -29,6 +29,14 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="spotify" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="soundcloud" />
+        </intent>
+        <package android:name="com.spotify.music" />
+        <package android:name="deezer.android.app" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.soundcloud.android" />
     </queries>
 
 </manifest>

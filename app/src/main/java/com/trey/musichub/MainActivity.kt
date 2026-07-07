@@ -38,8 +38,8 @@ class MainActivity : AppCompatActivity() {
         val pkg: String,
         val homeUrl: String,
         val searchUrl: (String) -> String,
-        val nativeUri: ((String) -> String)? = null,
-        val forceBrowser: Boolean = false
+        /** App-specific URIs to try first (opened while forcing [pkg]), in order. */
+        val appUris: ((String) -> List<String>)? = null
     )
 
     private val services: List<Service> by lazy {
@@ -52,7 +52,7 @@ class MainActivity : AppCompatActivity() {
                 pkg = "com.spotify.music",
                 homeUrl = "https://open.spotify.com",
                 searchUrl = { q -> "https://open.spotify.com/search/${enc(q)}" },
-                nativeUri = { q -> "spotify:search:${enc(q)}" }
+                appUris = { q -> listOf("spotify:search:${enc(q)}") }
             ),
             Service(
                 id = "deezer",
@@ -80,7 +80,12 @@ class MainActivity : AppCompatActivity() {
                 pkg = "com.soundcloud.android",
                 homeUrl = "https://soundcloud.com",
                 searchUrl = { q -> "https://soundcloud.com/search?q=${enc(q)}" },
-                forceBrowser = true
+                appUris = { q ->
+                    listOf(
+                        "soundcloud://search?q=${enc(q)}",
+                        "https://soundcloud.com/search?q=${enc(q)}"
+                    )
+                }
             )
         )
     }
@@ -193,25 +198,17 @@ class MainActivity : AppCompatActivity() {
 
         val webUrl = if (q.isEmpty()) service.homeUrl else service.searchUrl(q)
 
-        // Some apps (e.g. SoundCloud) grab their web links but can't open a search
-        // page, so nothing visible happens. For those we go straight to the browser,
-        // which reliably shows the results.
-        if (service.forceBrowser) {
-            if (openInBrowser(webUrl)) {
-                if (q.isNotEmpty()) addRecent(q)
-                return
+        val intents = ArrayList<Intent>()
+        // 1) Try to open the service's own app directly (its custom scheme and/or
+        //    its web links, forced to the app package so unverified links still work).
+        if (q.isNotEmpty()) {
+            service.appUris?.invoke(q)?.forEach { uri ->
+                intents.add(
+                    Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setPackage(service.pkg)
+                )
             }
         }
-
-        val intents = ArrayList<Intent>()
-        val native = service.nativeUri
-        if (q.isNotEmpty() && native != null) {
-            intents.add(
-                Intent(Intent.ACTION_VIEW, Uri.parse(native(q)))
-                    .setPackage(service.pkg)
-            )
-        }
-        // Plain web intent: Android routes to the installed app (verified links) or the browser.
+        // 2) Plain web intent: the installed app (verified links) or the browser.
         intents.add(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
 
         for (intent in intents) {
