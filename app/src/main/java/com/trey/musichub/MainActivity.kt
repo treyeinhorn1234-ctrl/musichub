@@ -38,7 +38,8 @@ class MainActivity : AppCompatActivity() {
         val pkg: String,
         val homeUrl: String,
         val searchUrl: (String) -> String,
-        val nativeUri: ((String) -> String)? = null
+        val nativeUri: ((String) -> String)? = null,
+        val forceBrowser: Boolean = false
     )
 
     private val services: List<Service> by lazy {
@@ -78,7 +79,8 @@ class MainActivity : AppCompatActivity() {
                 colorHex = "#FF5500",
                 pkg = "com.soundcloud.android",
                 homeUrl = "https://soundcloud.com",
-                searchUrl = { q -> "https://soundcloud.com/search?q=${enc(q)}" }
+                searchUrl = { q -> "https://soundcloud.com/search?q=${enc(q)}" },
+                forceBrowser = true
             )
         )
     }
@@ -189,6 +191,18 @@ class MainActivity : AppCompatActivity() {
         val q = searchInput.text?.toString()?.trim().orEmpty()
         hideKeyboard()
 
+        val webUrl = if (q.isEmpty()) service.homeUrl else service.searchUrl(q)
+
+        // Some apps (e.g. SoundCloud) grab their web links but can't open a search
+        // page, so nothing visible happens. For those we go straight to the browser,
+        // which reliably shows the results.
+        if (service.forceBrowser) {
+            if (openInBrowser(webUrl)) {
+                if (q.isNotEmpty()) addRecent(q)
+                return
+            }
+        }
+
         val intents = ArrayList<Intent>()
         val native = service.nativeUri
         if (q.isNotEmpty() && native != null) {
@@ -197,7 +211,6 @@ class MainActivity : AppCompatActivity() {
                     .setPackage(service.pkg)
             )
         }
-        val webUrl = if (q.isEmpty()) service.homeUrl else service.searchUrl(q)
         // Plain web intent: Android routes to the installed app (verified links) or the browser.
         intents.add(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
 
@@ -210,7 +223,33 @@ class MainActivity : AppCompatActivity() {
                 // try the next fallback
             }
         }
+        // Last resort: force a browser.
+        if (openInBrowser(webUrl)) {
+            if (q.isNotEmpty()) addRecent(q)
+            return
+        }
         Toast.makeText(this, getString(R.string.no_target_app), Toast.LENGTH_SHORT).show()
+    }
+
+    /** Opens [url] in a real web browser, bypassing apps that claim the domain. */
+    private fun openInBrowser(url: String): Boolean {
+        return try {
+            val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
+            val browserPkg = packageManager.queryIntentActivities(probe, 0)
+                .map { it.activityInfo.packageName }
+                .firstOrNull { it != packageName }
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            if (browserPkg != null) intent.setPackage(browserPkg)
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                true
+            } catch (e2: Exception) {
+                false
+            }
+        }
     }
 
     // ---- Recent searches (stored locally) --------------------------------
