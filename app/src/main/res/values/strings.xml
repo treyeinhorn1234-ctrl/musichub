@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MusicHub</string>
+    <string name="tagline">Tes 4 services, une seule recherche</string>
+    <string name="search_hint">Titre, artiste ou album…</string>
+    <string name="recent">Recherches récentes</string>
+    <string name="listen_on">Écouter sur</string>
+    <string name="footer_note">La lecture se fait dans l\'app officielle de chaque service (ou le navigateur si elle n\'est pas installée).</string>
+    <string name="no_target_app">Aucune application disponible pour ouvrir ce lien.</string>
+</resources>
